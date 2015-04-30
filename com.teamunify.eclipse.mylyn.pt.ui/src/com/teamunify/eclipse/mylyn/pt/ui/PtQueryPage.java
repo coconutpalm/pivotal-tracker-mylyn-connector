@@ -2,9 +2,10 @@ package com.teamunify.eclipse.mylyn.pt.ui;
 
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jface.layout.GridDataFactory;
-import org.eclipse.mylyn.internal.provisional.tasks.ui.wizards.AbstractRepositoryQueryPage2;
+import org.eclipse.mylyn.commons.workbench.forms.SectionComposite;
 import org.eclipse.mylyn.tasks.core.IRepositoryQuery;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
+import org.eclipse.mylyn.tasks.ui.wizards.AbstractRepositoryQueryPage2;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -48,7 +49,7 @@ public class PtQueryPage extends AbstractRepositoryQueryPage2 {
   }
 
   @Override
-  protected void createPageContent(Composite parent) {
+  protected void createPageContent(SectionComposite parent) {
     Composite composite = new Composite(parent, SWT.BORDER);
     composite.setLayout(new GridLayout(4, false));
 
@@ -95,7 +96,7 @@ public class PtQueryPage extends AbstractRepositoryQueryPage2 {
   }
 
   @Override
-  protected void doRefresh() {
+  protected void doRefreshControls() {
     // set default values to all fields
     if (restoreCalled == false) {
       removeAddValue();

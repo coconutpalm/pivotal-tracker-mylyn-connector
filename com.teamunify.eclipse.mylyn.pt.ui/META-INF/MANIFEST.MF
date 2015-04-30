@@ -2,8 +2,8 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Mylyn PT Connector UI
 Bundle-SymbolicName: com.teamunify.eclipse.mylyn.pt.ui;singleton:=true
-Bundle-Version: 1.0.17
-Bundle-Activator: com.teamunify.eclipse.mylyn.pt.ui.PtUiPlugin
+Bundle-Version: 1.1.0
+undle-Activator: com.teamunify.eclipse.mylyn.pt.ui.PtUiPlugin
 Bundle-Vendor: TeamUnify, Inc.
 Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.core.resources,
@@ -11,10 +11,11 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.ui,
  org.eclipse.ui.editors,
  org.eclipse.ui.forms,
- org.eclipse.mylyn.commons.ui;bundle-version="[3.1.0,4.0.0)",
- org.eclipse.mylyn.tasks.core;bundle-version="[3.1.0,4.0.0)",
- org.eclipse.mylyn.tasks.ui;bundle-version="[3.1.0,4.0.0)",
- com.teamunify.eclipse.mylyn.pt.core;bundle-version="1.0.13"
+ org.eclipse.mylyn.commons.ui;bundle-version="[3.7.0,4.0.0)",
+ org.eclipse.mylyn.commons.workbench;bundle-version="[3.7.0,4.0.0)",
+ org.eclipse.mylyn.tasks.core;bundle-version="[3.7.0,4.0.0)",
+ org.eclipse.mylyn.tasks.ui;bundle-version="[3.7.0,4.0.0)",
+ com.teamunify.eclipse.mylyn.pt.core;bundle-version="1.1.0"
 Bundle-RequiredExecutionEnvironment: J2SE-1.5
 Bundle-ActivationPolicy: lazy
 Export-Package: com.teamunify.eclipse.mylyn.pt.ui;x-internal:=true
