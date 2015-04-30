@@ -20,7 +20,7 @@ import com.teamunify.eclipse.mylyn.pt.core.PtTaskAttribute;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PivotalTracker;
 
 /**
- * 
+ *
  * @author DL
  */
 public class PtTaskPart extends AbstractTaskEditorPart {
@@ -41,7 +41,7 @@ public class PtTaskPart extends AbstractTaskEditorPart {
       String type = attribute.getMetaData().getType();
       if (TaskAttribute.TYPE_LONG_TEXT.equals(type)) {
         GridDataFactory.fillDefaults().grab(true, true).indent(10, 0).align(SWT.FILL, SWT.FILL).hint(10, 40)
-                       .minSize(SWT.DEFAULT, 40).applyTo(editor.getControl());
+        .minSize(SWT.DEFAULT, 40).applyTo(editor.getControl());
         editor.getControl().setData(taskId);
       } else {
         GridDataFactory.fillDefaults().applyTo(editor.getControl());
@@ -60,7 +60,7 @@ public class PtTaskPart extends AbstractTaskEditorPart {
     GridLayout layout = new GridLayout(3, false);
     sectionComposite.setLayout(layout);
     List<TaskAttribute> taskAttributes = getTaskData().getAttributeMapper()
-                                                      .getAttributesByType(getTaskData(), PtTaskAttribute.TYPE_TASK);
+        .getAttributesByType(getTaskData(), PtTaskAttribute.TYPE_TASK);
 
     section.setText("Tasks (" + taskAttributes.size() + ")");
     if (taskAttributes.size() > 0) {
@@ -88,8 +88,7 @@ public class PtTaskPart extends AbstractTaskEditorPart {
     SelectionListeners() {
       try {
         pivotalTracker = new PivotalTracker(repository.getProperty(PtCorePlugin.REPOSITORY_KEY_PATH),
-                                            repository.getProperty(PtCorePlugin.REPOSITORY_KEY_USERNAME),
-                                            repository.getProperty(PtCorePlugin.REPOSITORY_KEY_PASSWORD));
+                                            repository.getProperty(PtCorePlugin.REPOSITORY_KEY_APITOKEN));
       } catch (Exception e) {
         // TODO Auto-generated catch block
         e.printStackTrace();
@@ -106,8 +105,8 @@ public class PtTaskPart extends AbstractTaskEditorPart {
         if (flag == true) {
 
           List<TaskAttribute> taskAttributes = getTaskData().getAttributeMapper()
-                                                            .getAttributesByType(getTaskData(),
-                                                                                 PtTaskAttribute.TYPE_TASK);
+              .getAttributesByType(getTaskData(),
+                                   PtTaskAttribute.TYPE_TASK);
 
           if (taskAttributes.size() > 0) {
             for (TaskAttribute commentAttribute : taskAttributes) {

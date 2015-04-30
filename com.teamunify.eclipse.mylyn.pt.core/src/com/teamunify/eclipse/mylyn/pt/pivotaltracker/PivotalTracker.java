@@ -8,12 +8,14 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.UnknownHostException;
+import java.lang.reflect.Type;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
@@ -24,8 +26,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -41,60 +41,35 @@ import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.ExecutionContext;
 import org.apache.http.protocol.HttpContext;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
+import org.eclipse.mylyn.tasks.core.IRepositoryQuery;
+import org.joda.time.DateTime;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
+import com.teamunify.eclipse.mylyn.pt.core.PtCorePlugin;
+import com.teamunify.eclipse.mylyn.pt.core.util.StringUtils;
 
 public class PivotalTracker {
   private final String repositoryUrl;
-  private final String userName;
-  private final String password;
-  private final String token;
-  private final String tokenUrl = "https://www.pivotaltracker.com/services/v3/tokens/active";
+  private final String apiToken;
   private volatile PtConfiguration configuration = new PtConfiguration();
-  private final String projectUrl = "https://www.pivotaltracker.com/services/v3/projects/";
+  private final String projectUrl = "https://www.pivotaltracker.com/services/v5/projects/";
   String errmsg = "";
   private String projectId;
 
-  public PivotalTracker(String url, String userName, String password) throws Exception {
+  public PivotalTracker(String url, String apiToken) throws Exception {
     this.repositoryUrl = projectUrl + url;
-    this.userName = userName;
-    this.password = password;
-    this.token = getToken();
-    getProjectConfiguration();
-  }
-
-  /**
-   * Get token of a repository user
-   * 
-   * @return token
-   */
-  public String getToken() { // throws Exception
-    String token = "";
-    try {
-      DefaultHttpClient client = new DefaultHttpClient();
-      HttpGet get = new HttpGet(tokenUrl);
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
-      HttpResponse response = client.execute(get);
-      HttpEntity entity = response.getEntity();
-      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-      DocumentBuilder loader = factory.newDocumentBuilder();
-      Document document = loader.parse(entity.getContent());
-      NodeList nodes = document.getElementsByTagName("guid");
-      if (nodes.getLength() > 0) { return nodes.item(0).getTextContent(); }
-    } catch (UnknownHostException e) {
-      // throw new Exception("Internet connection failure");
-      errmsg = "Internet connection failure";
-    } catch (Exception e) {
-      if (e.getMessage().equalsIgnoreCase("Content is not allowed in prolog.")) {
-        errmsg = "Please Enter Valid Username, Password";
-      } else {
-        errmsg = "Unable to connect with PivotalTracker";
-      }
-      setErrmsg(errmsg);
-    }
-    return token;
+    this.apiToken = apiToken;
+    updateProjectConfiguration();
   }
 
   public String getErrmsg() {
@@ -105,12 +80,29 @@ public class PivotalTracker {
     this.errmsg = errmsg;
   }
 
+  private Me getMe() {
+    DefaultHttpClient client = new DefaultHttpClient();
+    HttpGet get = new HttpGet(repositoryUrl);
+    get.addHeader("X-TrackerToken", apiToken);
+
+    HttpResponse response;
+    try {
+      response = client.execute(get);
+
+      HttpEntity entity = response.getEntity();
+
+      return gsonWithDate().fromJson(new InputStreamReader(entity.getContent()), Me.class);
+    } catch (Exception e) {
+      PtCorePlugin.getDefault().getLog()
+                  .log(new Status(IStatus.ERROR, PtCorePlugin.ID_PLUGIN, "Error requesting me resource", e));
+    }
+    return null;
+  }
+
   public Boolean getProject(int projectId) {
     DefaultHttpClient client = new DefaultHttpClient();
     HttpGet get = new HttpGet(projectUrl + projectId);
-    get.addHeader("X-TrackerToken", token);
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
+    get.addHeader("X-TrackerToken", apiToken);
     HttpResponse response;
     try {
       response = client.execute(get);
@@ -123,116 +115,118 @@ public class PivotalTracker {
     return false;
   }
 
-  /**
-   * Get list of Members in the given project
-   * 
-   * @return
-   */
-  public void getProjectConfiguration() {
-    List<String> list = new ArrayList<String>();
-    List<String> emailList = new ArrayList<String>();
+  private HttpEntity get(final String apiQuery) {
     DefaultHttpClient client = new DefaultHttpClient();
-    HttpGet get = new HttpGet(repositoryUrl);
-    get.addHeader("X-TrackerToken", token);
-
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
-
+    HttpGet get = new HttpGet(repositoryUrl + apiQuery);
+    get.addHeader("X-TrackerToken", apiToken);
     HttpResponse response;
+
     try {
       response = client.execute(get);
 
-      HttpEntity entity = response.getEntity();
+      return response.getEntity();
+    } catch (Exception e) {
+      // TODO Auto-generated catch block
+    }
+    return null;
+  }
 
-      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-      DocumentBuilder loader = factory.newDocumentBuilder();
-      Document document = loader.parse(entity.getContent());
-
-      NodeList bugChoreNodeList = document.getElementsByTagName("bugs_and_chores_are_estimatable");
-      configuration.setBugsChoreEstimatable(bugChoreNodeList.item(0).getTextContent().equalsIgnoreCase("true") ? true
-                                                                                                              : false);
-      NodeList nodes = document.getElementsByTagName("person");
-      for (int i = 0; i < nodes.getLength(); i++) {
-        Element element = (Element) nodes.item(i);
-        NodeList nodes1 = element.getElementsByTagName("name");
-        NodeList nodes2 = element.getElementsByTagName("email");
-        String name = "";
-        if (nodes1.getLength() > 0) {
-          name = nodes1.item(0).getTextContent();
-          list.add(name);
-        }
-        if (nodes2.getLength() > 0) {
-          String email = nodes2.item(0).getTextContent();
-          if (email.equalsIgnoreCase(userName)) {
-            configuration.setRequestedBy(name);
-          }
-          emailList.add(email);
-        }
-      }
-      configuration.setMembers(list);
-      configuration.setMembersEmail(emailList);
-      NodeList pointNodes = document.getElementsByTagName("point_scale");
-      if (pointNodes.getLength() > 0) {
-        String[] points = pointNodes.item(0).getTextContent().split(",");
-        String[] newpoints = new String[points.length + 1];
-        newpoints[0] = "Unestimated";
-        for (int i = 0; i < points.length; i++) {
-          if (points[i].equals(1)) {
-            newpoints[i + 1] = points[i] + " point";
-          } else {
-            newpoints[i + 1] = points[i] + " points";
-          }
-        }
-        configuration.setEstimates(newpoints);
-      }
-
-      NodeList labelsNodes = document.getElementsByTagName("labels");
-      if (labelsNodes.getLength() > 0) {
-        Element labelElement = (Element) labelsNodes.item(0);
-        if (labelElement.getTextContent().length() > 0) {
-          configuration.setLabels(labelElement.getTextContent().split(","));
-        }
-      }
-    } catch (Exception e) {}
+  static String convertStreamToString(java.io.InputStream is) {
+    java.util.Scanner s = new java.util.Scanner(is).useDelimiter("\\A");
+    return s.hasNext() ? s.next() : "";
   }
 
   /**
-   * Method for getting story object from server response
-   * 
+   * Get list of Members in the given project
+   *
+   * @return
+   */
+  public void updateProjectConfiguration() {
+    // List<String> list = new ArrayList<String>();
+    // List<String> emailList = new ArrayList<String>();
+    try {
+
+      Project project = gsonWithDate().fromJson(new InputStreamReader(
+                                                                      get(
+                                                                          "?fields=id,name,version,point_scale,bugs_and_chores_are_estimatable,labels").getContent()),
+                                                Project.class);
+      configuration.setBugsChoreEstimatable(project.isBugsAndChoresAreEstimatable());
+      configuration.setEstimates(project.getPointScale().split(","));
+
+      List<ProjectMembership> projectMemberships = gsonWithDate().fromJson(new InputStreamReader(
+                                                                                                 get("/memberships").getContent()),
+                                                                           new TypeToken<List<ProjectMembership>>() {}.getType());
+      List<Person> members = new LinkedList<Person>();
+      for (ProjectMembership membership : projectMemberships) {
+        members.add(membership.getPerson());
+      }
+      configuration.setMembers(members);
+
+      List<Iteration> iterations = gsonWithDate().fromJson(new InputStreamReader(get("/iterations").getContent()),
+                                                           new TypeToken<List<Iteration>>() {}.getType());
+      configuration.setIterations(iterations);
+    } catch (Exception e) {
+      PtCorePlugin.getDefault().getLog()
+                  .log(new Status(IStatus.ERROR, PtCorePlugin.ID_PLUGIN, "Error requesting project resource", e));
+    }
+  }
+
+  public final List<Story> collectStories(IRepositoryQuery query) throws Exception {
+    if (query != null) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("/stories");
+
+      String labelFilter = query.getAttribute(PtCorePlugin.QUERY_KEY_LABEL);
+      if (StringUtils.isNotEmpty(labelFilter)) {
+        sb.append("&labels:" + labelFilter);
+      }
+
+      String ownedFilter = query.getAttribute(PtCorePlugin.QUERY_KEY_OWNED_BY);
+      if (StringUtils.isNotEmpty(ownedFilter)) {
+        sb.append("&owned_by_id:" + ownedFilter);
+      }
+
+      String requestedFilter = query.getAttribute(PtCorePlugin.QUERY_KEY_REQUESTED_BY);
+      if (StringUtils.isNotEmpty(requestedFilter)) {
+        sb.append("&requested_by_id:" + requestedFilter);
+      }
+
+      String stateFilter = query.getAttribute(PtCorePlugin.QUERY_KEY_STATE);
+      if (StringUtils.isNotEmpty(stateFilter)) {
+        sb.append("&current_state:" + stateFilter);
+      }
+
+      String typeFilter = query.getAttribute(PtCorePlugin.QUERY_KEY_STORY_TYPE);
+      if (StringUtils.isNotEmpty(typeFilter)) {
+        sb.append("&story_type:" + typeFilter);
+      }
+      String urlQuery = sb.toString().replaceFirst("&", "?filter=").replaceAll("\\|", ",");
+      return gsonWithDate().fromJson(new InputStreamReader(get(urlQuery).getContent()),
+                                     new TypeToken<List<Story>>() {}.getType());
+    }
+    return Collections.emptyList();
+  }
+
+  /**
+   * Get a story object by id
+   *
    * @param url
    * @return
    * @throws Exception
    */
-  public Story getStories(String url, String iterationType) {
-    Story storyData = null;
-    DefaultHttpClient client = new DefaultHttpClient();
-    try {
-      HttpGet get = new HttpGet(url);
-      get.addHeader("X-TrackerToken", token);
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
-
-      HttpResponse response = client.execute(get);
-      HttpEntity entity = response.getEntity();
-
-      InputStreamReader reader = new InputStreamReader(entity.getContent());
-      storyData = (Story) org.exolab.castor.xml.Unmarshaller.unmarshal(Story.class, reader);
-      storyData.setIterationType(iterationType);
-    } catch (Exception e) {
-      new Exception("Error while retrieving story");
-    } finally {
-      client.getConnectionManager().shutdown();
-    }
-    return storyData;
-  }
-
   public Story getStoryById(String storyId) throws Exception {
-    return getStories(repositoryUrl + "/stories/" + storyId, "");
+
+    return gsonWithDate().fromJson(new InputStreamReader(
+                                                         get(
+                                                             "/stories/"
+                                                                 + storyId
+                                                                 + "?fields=name,description,story_type,current_state,estimate,accepted_at,deadline,requested_by_id,owned_by_id,labels,tasks,comments,created_at,updated_at,url").getContent()),
+                                   Story.class);
   }
 
   /**
    * Add a note into PT
-   * 
+   *
    * @param url
    * @param notes
    */
@@ -256,10 +250,8 @@ public class PivotalTracker {
       url = url + query;
       HttpPost httpPost = new HttpPost(url);
 
-      httpPost.addHeader("X-TrackerToken", token);
+      httpPost.addHeader("X-TrackerToken", apiToken);
 
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
       client.execute(httpPost);
 
     } catch (Exception e) {
@@ -269,7 +261,7 @@ public class PivotalTracker {
 
   /**
    * Add a story In PT (By default goes to ICEBOX)
-   * 
+   *
    * @param storyData
    * @return
    */
@@ -279,19 +271,18 @@ public class PivotalTracker {
     formparams.add(new BasicNameValuePair("story[name]", storyData.getName()));
     formparams.add(new BasicNameValuePair("story[description]", storyData.getDescription()));
     formparams.add(new BasicNameValuePair("story[estimate]", storyData.getEstimate() + ""));
-    formparams.add(new BasicNameValuePair("story[current_state]", storyData.getCurrent_state()));
-    formparams.add(new BasicNameValuePair("story[owned_by]", storyData.getOwned_by()));
-    formparams.add(new BasicNameValuePair("story[requested_by]", storyData.getRequested_by()));
-    formparams.add(new BasicNameValuePair("story[labels]", storyData.getLabels()));
-    formparams.add(new BasicNameValuePair("story[story_type]", storyData.getStory_type()));
+    formparams.add(new BasicNameValuePair("story[current_state]", storyData.getCurrentState().name()));
+    formparams.add(new BasicNameValuePair("story[owned_by]", storyData.getOwnedBy() + ""));
+    formparams.add(new BasicNameValuePair("story[requested_by]", "" + storyData.getRequestedBy()));
+    // TODO to string
+    // formparams.add(new BasicNameValuePair("story[labels]", storyData.getLabels()));
+    formparams.add(new BasicNameValuePair("story[story_type]", storyData.getStoryType().name()));
     String query = URLEncodedUtils.format(formparams, "UTF-8");
     String uri = repositoryUrl + "/stories?" + query;
     HttpPost httpPost = new HttpPost(uri);
-    httpPost.addHeader("X-TrackerToken", token);
+    httpPost.addHeader("X-TrackerToken", apiToken);
     httpPost.addHeader("Content-type", "application/xml");
 
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
     HttpResponse response = client.execute(httpPost);
 
     HttpEntity entity = response.getEntity();
@@ -299,15 +290,15 @@ public class PivotalTracker {
     DocumentBuilder loader = factory.newDocumentBuilder();
     Document document = loader.parse(entity.getContent());
     NodeList nodes = document.getElementsByTagName("id");
-    addNote(repositoryUrl + "/stories/" + nodes.item(0).getTextContent() + "/notes?", storyData.getNotes());
-    addUpdateTask(repositoryUrl + "/stories/" + nodes.item(0).getTextContent(), storyData.getTasks());
+    // addNote(repositoryUrl + "/stories/" + nodes.item(0).getTextContent() + "/notes?", storyData.getNotes());
+    // addUpdateTask(repositoryUrl + "/stories/" + nodes.item(0).getTextContent(), storyData.getTasks());
     if (nodes.getLength() > 0) { return nodes.item(0).getTextContent(); }
     return "";
   }
 
   /**
    * Update a story in PT
-   * 
+   *
    * @param storyData
    */
   public String updateStory(Story storyData) throws Exception {
@@ -318,29 +309,28 @@ public class PivotalTracker {
       formparams.add(new BasicNameValuePair("story[name]", storyData.getName()));
       formparams.add(new BasicNameValuePair("story[description]", storyData.getDescription()));
       formparams.add(new BasicNameValuePair("story[estimate]", storyData.getEstimate() + ""));
-      formparams.add(new BasicNameValuePair("story[current_state]", storyData.getCurrent_state()));
-      formparams.add(new BasicNameValuePair("story[owned_by]", storyData.getOwned_by()));
-      formparams.add(new BasicNameValuePair("story[requested_by]", storyData.getRequested_by()));
-      formparams.add(new BasicNameValuePair("story[labels]", storyData.getLabels()));
-      formparams.add(new BasicNameValuePair("story[story_type]", storyData.getStory_type()));
+      formparams.add(new BasicNameValuePair("story[current_state]", storyData.getCurrentState().name()));
+      formparams.add(new BasicNameValuePair("story[owned_by]", storyData.getOwnedBy() + ""));
+      formparams.add(new BasicNameValuePair("story[requested_by]", "" + storyData.getRequestedBy()));
+      // TODO to string
+      // formparams.add(new BasicNameValuePair("story[labels]", storyData.getLabels()));
+      formparams.add(new BasicNameValuePair("story[story_type]", storyData.getStoryType().name()));
 
       String query = URLEncodedUtils.format(formparams, "UTF-8");
       String uri = repositoryUrl + "/stories/" + storyData.getId() + "?" + query;
       HttpPut httpPost = new HttpPut(uri);
 
-      httpPost.addHeader("X-TrackerToken", token);
+      httpPost.addHeader("X-TrackerToken", apiToken);
 
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
       HttpResponse httpResponse = client.execute(httpPost);
       HttpEntity entity = httpResponse.getEntity();
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
       DocumentBuilder loader = factory.newDocumentBuilder();
       Document document = loader.parse(entity.getContent());
-      addNote(repositoryUrl + "/stories/" + storyData.getId() + "/notes?", storyData.getNotes());
-      if (storyData.getTasks() != null) {
-        addUpdateTask(repositoryUrl + "/stories/" + storyData.getId(), storyData.getTasks());
-      }
+      // addNote(repositoryUrl + "/stories/" + storyData.getId() + "/notes?", storyData.getNotes());
+      // if (storyData.getTasks() != null) {
+      // addUpdateTask(repositoryUrl + "/stories/" + storyData.getId(), storyData.getTasks());
+      // }
       NodeList nodes = document.getElementsByTagName("error");
       if (nodes.getLength() > 0) {
         response = nodes.item(0).getTextContent();
@@ -355,92 +345,30 @@ public class PivotalTracker {
 
   /**
    * Get list of stories in the given iteration
-   * 
+   *
    * @param iterationType
    *          (done,backlog,current by default)
    * @return
    */
   public final List<Story> getCurrentIterations(String iterationType) throws Exception {
-    List<Story> stories = new ArrayList<Story>();
-    String url = null;
-    if (iterationType != null && iterationType.length() > 0) {
-      if (iterationType.equalsIgnoreCase("icebox")) {
-        url = "/stories?filter=state:unscheduled";
-      } else {
-        url = "/iterations/" + iterationType.toLowerCase();
-      }
-      if (url != null) {
-        DefaultHttpClient client = new DefaultHttpClient();
-        HttpGet get = new HttpGet(repositoryUrl + url);
-        get.addHeader("X-TrackerToken", token);
-        client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                       new UsernamePasswordCredentials(userName, password));
-        try {
-          HttpResponse response = client.execute(get);
-          HttpEntity entity = response.getEntity();
-          if (entity != null) {
-            InputStreamReader reader = new InputStreamReader(entity.getContent());
-            if (iterationType.equalsIgnoreCase("icebox")) {
-              Stories stories1 = (Stories) org.exolab.castor.xml.Unmarshaller.unmarshal(Stories.class, reader);
-              if (stories1 != null) {
-                Story story[] = stories1.getStory();
-                if (story != null) {
-                  for (Story element2 : story) {
-                    element2.setIterationType("icebox");
-                    stories.add(element2);
-                  }
-                }
-              }
-            } else {
-              Iterations iterations = (Iterations) org.exolab.castor.xml.Unmarshaller.unmarshal(Iterations.class,
-                                                                                                reader);
-              Iteration iteration[] = iterations.getIteration();
-              if (iteration != null) {
-                for (Iteration element : iteration) {
-                  Stories stories2[] = element.getStories();
-                  if (stories2 != null) {
-                    for (Stories element1 : stories2) {
-                      Story story[] = element1.getStory();
-                      if (story != null) {
-                        for (Story element2 : story) {
-                          element2.setIterationType(iterationType.toLowerCase());
-                          stories.add(element2);
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (Exception e) {
-          throw new Exception("Error while getting iteration");
-        }
-      }
-    }
-    return stories;
+    if (iterationType != null && iterationType.length() > 0) { return gsonWithDate().fromJson(new InputStreamReader(
+                                                                                                                    get(
+                                                                                                                        "/stories").getContent()),
+                                                                                              new TypeToken<List<Story>>() {}.getType()); }
+    return Collections.emptyList();
   }
 
   public PtConfiguration updateConfiguration(IProgressMonitor monitor) throws Exception {
     try {
-      getProjectConfiguration();
+      updateProjectConfiguration();
       return configuration;
     } catch (Exception e) {
       throw new Exception("Error reading configuration");
     }
-
   }
 
   public final boolean hasConfiguration() {
     return configuration.updated != -1;
-  }
-
-  public PtConfiguration getConfiguration() {
-    return configuration;
-  }
-
-  public void setConfiguration(PtConfiguration configuration) {
-    this.configuration = configuration;
   }
 
   public InputStream getAttachment(String storyId, String url) throws Exception {
@@ -470,8 +398,8 @@ public class PivotalTracker {
       DefaultHttpClient client1 = new DefaultHttpClient();
 
       List<NameValuePair> formparams = new ArrayList<NameValuePair>();
-      formparams.add(new BasicNameValuePair("credentials[username]", userName));
-      formparams.add(new BasicNameValuePair("credentials[password]", password));
+      // formparams.add(new BasicNameValuePair("credentials[username]", userName));
+      // formparams.add(new BasicNameValuePair("credentials[password]", password));
       UrlEncodedFormEntity paramEntity = new UrlEncodedFormEntity(formparams, "UTF-8");
       HttpPost httpPost = new HttpPost(redirectUrl);
       httpPost.setEntity(paramEntity);
@@ -526,11 +454,8 @@ public class PivotalTracker {
 
       mpEntity.addPart("Filedata", cbFile);
 
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
-
       httpPost.setEntity(mpEntity);
-      httpPost.addHeader("X-TrackerToken", token);
+      httpPost.addHeader("X-TrackerToken", apiToken);
 
       client.execute(httpPost);
       file.delete();
@@ -550,9 +475,7 @@ public class PivotalTracker {
     DefaultHttpClient client = new DefaultHttpClient();
 
     HttpGet get = new HttpGet(repositoryUrl);
-    get.addHeader("X-TrackerToken", token);
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
+    get.addHeader("X-TrackerToken", apiToken);
     HttpResponse response = client.execute(get);
     if (response.getStatusLine().getStatusCode() == 200) {
       HttpEntity entity = response.getEntity();
@@ -585,9 +508,7 @@ public class PivotalTracker {
     DefaultHttpClient client = new DefaultHttpClient();
     try {
       HttpGet get = new HttpGet(url);
-      get.addHeader("X-TrackerToken", token);
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
+      get.addHeader("X-TrackerToken", apiToken);
       HttpResponse response = client.execute(get);
       if (response.getStatusLine().getStatusCode() == 200) {
         HttpEntity entity = response.getEntity();
@@ -612,7 +533,7 @@ public class PivotalTracker {
 
   /**
    * Update PT tasks
-   * 
+   *
    * @param url
    * @param tasks
    * @throws Exception
@@ -626,9 +547,7 @@ public class PivotalTracker {
             List<NameValuePair> formparams = new ArrayList<NameValuePair>();
             formparams.add(new BasicNameValuePair("task[description]", task.getDescription()));
             HttpPost httpPost = new HttpPost(url + "/tasks?" + URLEncodedUtils.format(formparams, "UTF-8"));
-            httpPost.addHeader("X-TrackerToken", token);
-            client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                           new UsernamePasswordCredentials(userName, password));
+            httpPost.addHeader("X-TrackerToken", apiToken);
             HttpResponse httpResponse = client.execute(httpPost);
             System.out.println("httpResponse : " + httpResponse.getStatusLine().getStatusCode());
           }
@@ -641,9 +560,7 @@ public class PivotalTracker {
             formparams.add(new BasicNameValuePair("task[description]", task.getDescription()));
             HttpPut httpPut = new HttpPut(url + "/tasks/" + task.getId() + "?"
                                           + URLEncodedUtils.format(formparams, "UTF-8"));
-            httpPut.addHeader("X-TrackerToken", token);
-            client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                           new UsernamePasswordCredentials(userName, password));
+            httpPut.addHeader("X-TrackerToken", apiToken);
             client.execute(httpPut);
           }
         }
@@ -654,9 +571,7 @@ public class PivotalTracker {
   public boolean deleteTask(int storyId, int taskId) {
     DefaultHttpClient client = new DefaultHttpClient();
     HttpDelete httpDelete = new HttpDelete(repositoryUrl + "/stories/" + storyId + "/tasks/" + taskId);
-    httpDelete.addHeader("X-TrackerToken", token);
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
+    httpDelete.addHeader("X-TrackerToken", apiToken);
     HttpResponse httpResponse = null;
     try {
       httpResponse = client.execute(httpDelete);
@@ -671,9 +586,8 @@ public class PivotalTracker {
   public boolean deleteStory(int storyId) {
     DefaultHttpClient client = new DefaultHttpClient();
     HttpDelete httpDelete = new HttpDelete(repositoryUrl + "/stories/" + storyId);
-    httpDelete.addHeader("X-TrackerToken", token);
-    client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                   new UsernamePasswordCredentials(userName, password));
+    httpDelete.addHeader("X-TrackerToken", apiToken);
+
     HttpResponse httpResponse = null;
     try {
       httpResponse = client.execute(httpDelete);
@@ -685,26 +599,14 @@ public class PivotalTracker {
     return false;
   }
 
-  public String getUserName() {
-    return userName;
-  }
-
-  public String getPassword() {
-    return password;
-  }
-
   public String getProjectId() {
     return projectId;
   }
 
-  public void setProjectId(String projectId) {
-    this.projectId = projectId;
-  }
-
   /**
-   * 
+   *
    * Moves the given story Id before/after the target story Id in PT
-   * 
+   *
    * @param storyId
    *          - moving story id
    * @param targetStoryId
@@ -722,11 +624,7 @@ public class PivotalTracker {
       System.out.println(url);
       HttpPost httpPost = new HttpPost(url);
 
-      httpPost.addHeader("X-TrackerToken", token);
-      client.getCredentialsProvider().setCredentials(new AuthScope(null, 443),
-                                                     new UsernamePasswordCredentials(userName, password));
-
-      // client.execute(httpPost);
+      httpPost.addHeader("X-TrackerToken", apiToken);
 
       HttpResponse httpResponse = client.execute(httpPost);
       HttpEntity entity = httpResponse.getEntity();
@@ -747,7 +645,7 @@ public class PivotalTracker {
 
   /**
    * Check whether the given story is in current lane
-   * 
+   *
    * @param storyId
    * @return
    */
@@ -768,5 +666,49 @@ public class PivotalTracker {
       e.printStackTrace();
     }
     return flag;
+  }
+
+  public String getApiToken() {
+    return apiToken;
+  }
+
+  public static Gson gsonWithDate() {
+    final GsonBuilder builder = new GsonBuilder();
+
+    builder.registerTypeAdapter(Date.class, new JsonDeserializer<Date>() {
+
+      final DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+
+      public Date deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+                                                                                                 throws JsonParseException {
+        try {
+          return df.parse(json.getAsString());
+        } catch (final java.text.ParseException e) {
+          e.printStackTrace();
+          return null;
+        }
+      }
+    });
+
+    builder.registerTypeAdapter(DateTime.class, new JsonDeserializer<DateTime>() {
+
+      final DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+
+      public DateTime deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+                                                                                                     throws JsonParseException {
+        try {
+          return new DateTime(df.parse(json.getAsString()));
+        } catch (final java.text.ParseException e) {
+          e.printStackTrace();
+          return null;
+        }
+      }
+    });
+
+    return builder.create();
+  }
+
+  public PtConfiguration getConfiguration() {
+    return configuration;
   }
 }

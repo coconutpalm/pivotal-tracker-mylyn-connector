@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry exported="true" kind="lib" path="joda-time-1.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="build-dependency/xpp3-1.1.4c.jar"/>
+	<classpathentry kind="lib" path="build-dependency/joda-time-1.6.jar"/>
 	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="lib" path="build-dependency/commons-logging-1.1.1.jar"/>
@@ -11,7 +11,7 @@
 	<classpathentry kind="lib" path="build-dependency/castor-1.3.1.jar"/>
 	<classpathentry kind="lib" path="build-dependency/commons-codec-1.4.jar"/>
 	<classpathentry kind="lib" path="build-dependency/httpclient-4.1.jar"/>
-	<classpathentry kind="lib" path="build-dependency/httpcore-4.1.jar"/>
+	<classpathentry kind="lib" path="build-dependency/httpcore-4.1.jar" sourcepath="C:/Users/akoch/.m2/repository/org/apache/httpcomponents/httpcore/4.1/httpcore-4.1-sources.jar"/>
 	<classpathentry kind="lib" path="build-dependency/httpmime-4.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

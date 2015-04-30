@@ -2,9 +2,9 @@ package com.teamunify.eclipse.mylyn.pt.core;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
@@ -17,19 +17,20 @@ import org.eclipse.mylyn.tasks.core.RepositoryResponse;
 import org.eclipse.mylyn.tasks.core.RepositoryResponse.ResponseKind;
 import org.eclipse.mylyn.tasks.core.TaskRepository;
 import org.eclipse.mylyn.tasks.core.data.AbstractTaskDataHandler;
-import org.eclipse.mylyn.tasks.core.data.TaskAttachmentMapper;
 import org.eclipse.mylyn.tasks.core.data.TaskAttribute;
 import org.eclipse.mylyn.tasks.core.data.TaskAttributeMapper;
 import org.eclipse.mylyn.tasks.core.data.TaskCommentMapper;
 import org.eclipse.mylyn.tasks.core.data.TaskData;
 import org.eclipse.osgi.util.NLS;
-import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Attachment;
-import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Attachments;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Comment;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Label;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.NoteData;
-import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Notes;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Person;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PivotalTracker;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PtConfiguration;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story.StoryState;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story.StoryType;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Task;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Tasks;
 
@@ -69,9 +70,8 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
     attribute.getMetaData().setReadOnly(false).setKind(TaskAttribute.KIND_DEFAULT)
              .setType(TaskAttribute.TYPE_SINGLE_SELECT).setLabel("Story Type :");
 
-    String[] storyType = configuration.getStoryTypes();
-    for (String story : storyType) {
-      attribute.putOption(story, story);
+    for (StoryType storyType : StoryType.values()) {
+      attribute.putOption(storyType.name(), storyType.name());
     }
     attribute.setValue("Feature");
 
@@ -81,10 +81,6 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
 
     String[] estimates = configuration.getEstimates();
     for (String estimate : estimates) {
-      if (estimate.equalsIgnoreCase("1 points")) {
-        estimate = "1 point";
-      }
-
       attribute.putOption(estimate, estimate);
     }
     attribute.setValue("Unestimated");
@@ -92,29 +88,24 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
     attribute = taskData.getRoot().createAttribute(TaskAttribute.USER_ASSIGNED);
     attribute.getMetaData().setReadOnly(false).setKind(TaskAttribute.KIND_DEFAULT)
              .setType(TaskAttribute.TYPE_SINGLE_SELECT).setLabel("Requested By :");
-    List<String> members = configuration.getMembers();
-    for (String member : members) {
-      attribute.putOption(member, member);
-    }
-    if (configuration.getRequestedBy() != null) {
-      attribute.setValue(configuration.getRequestedBy());
+    for (Person member : configuration.getMembers()) {
+      attribute.putOption(member.getName(), member.getName());
     }
 
     attribute = taskData.getRoot().createAttribute(TaskAttribute.STATUS);
     attribute.getMetaData().setReadOnly(true).setKind(TaskAttribute.KIND_DEFAULT)
              .setType(TaskAttribute.TYPE_SINGLE_SELECT).setLabel("Status :");
     // taskData.getRoot().getAttribute(TaskAttribute.STATUS).getMetaData().setReadOnly(true);
-    String[] states = configuration.getStoryStates();
-    for (String state : states) {
-      attribute.putOption(state, state);
+    for (StoryState storyState : StoryState.values()) {
+      attribute.putOption(storyState.name(), storyState.name());
     }
     attribute.setValue("Not Yet Started");
     // Set Status to read only
     attribute = taskData.getRoot().createAttribute(TaskAttribute.USER_REPORTER);
     attribute.getMetaData().setReadOnly(false).setKind(TaskAttribute.KIND_DEFAULT)
              .setType(TaskAttribute.TYPE_SINGLE_SELECT).setLabel("Owned By : ");
-    for (String member : members) {
-      attribute.putOption(member, member);
+    for (Person member : configuration.getMembers()) {
+      attribute.putOption(member.getName(), member.getName());
     }
 
     attribute = taskData.getRoot().createAttribute(TaskAttribute.PRIORITY);
@@ -149,6 +140,7 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
                                          Set<TaskAttribute> oldAttributes, IProgressMonitor monitor)
                                                                                                     throws CoreException {
     PivotalTracker pivotalTracker = connector.getPivotalTracker(repository);
+    PtConfiguration configuration = pivotalTracker.getConfiguration();
     String taskId = taskData.getTaskId();
 
     Story storyData = new Story();
@@ -165,7 +157,7 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.DESCRIPTION);
     storyData.setDescription(taskAttribute.getValue());
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.USER_ASSIGNED);
-    storyData.setRequested_by(taskAttribute.getValue());
+    storyData.setRequestedBy(Integer.parseInt(taskAttribute.getValue()));
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.PRODUCT);
     String estimate = taskAttribute.getValue();
     int estimateValue;
@@ -178,19 +170,20 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
 
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.TASK_KIND);
     String storyType = taskAttribute.getValue().toLowerCase();
-    storyData.setStory_type(storyType);
+    storyData.setStoryType(StoryType.valueOf(storyType));
 
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.STATUS);
     String stateValue = taskAttribute.getValue();
+    StoryState current;
     if (stateValue.equalsIgnoreCase("Not Yet Started")) {
-      stateValue = "unstarted";
+      current = StoryState.unstarted;
     } else {
-      stateValue = stateValue.toLowerCase();
+      current = StoryState.valueOf(stateValue.toLowerCase());
     }
-    storyData.setCurrent_state(stateValue);
+    storyData.setCurrentState(current);
 
     taskAttribute = taskData.getRoot().getAttribute(TaskAttribute.USER_REPORTER);
-    storyData.setOwned_by(taskAttribute.getValue());
+    storyData.setOwnedBy(configuration.getMemberId(taskAttribute.getValue()));
 
     String newComment = ""; //$NON-NLS-1$
     TaskAttribute newCommentAttribute = taskData.getRoot().getMappedAttribute(TaskAttribute.COMMENT_NEW);
@@ -203,21 +196,13 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
     NoteData noteDataArray[] = new NoteData[1];
     noteDataArray[0] = noteData;
 
-    Notes notes = new Notes();
-    notes.setNote(noteDataArray);
-
-    storyData.setNotes(notes);
+    // Notes notes = new Notes();
+    // notes.setNote(noteDataArray);
+    //
+    // storyData.setNotes(notes);
 
     taskAttribute = taskData.getRoot().getAttribute(PtTaskAttribute.TASK_LABEL);
-    String labels = "";
-
-    for (String value : taskAttribute.getValues()) {
-      labels = value + "," + labels;
-    }
-    if (labels.endsWith(",")) {
-      labels = labels.substring(0, labels.length() - 1);
-    }
-    storyData.setLabels(labels);
+    // TODO storyData.setLabels(taskAttribute.getValues());
 
     List<TaskAttribute> pttaskAttributes = taskData.getAttributeMapper().getAttributesByType(taskData,
 
@@ -229,8 +214,6 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
       taskArray = new Task[pttaskAttributes.size() + 1];
 
     }
-    PtConfiguration configuration = pivotalTracker.getConfiguration();
-    List<String> members = configuration.getMembersEmail();
     /*
      * if (!members.contains(repository.getUserName())) { throw new CoreException(
      * new Status(
@@ -272,7 +255,7 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
       taskArray[taskArray.length - 1] = task1;
     }
     tasks.setTask(taskArray);
-    storyData.setTasks(tasks);
+    // storyData.setTasks(tasks);
 
     String oldStatus = "";
     Iterator<TaskAttribute> iterate = oldAttributes.iterator();
@@ -354,8 +337,8 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
       attribute.setValue(story.getDescription());
       attribute = taskData.getRoot().getAttribute(TaskAttribute.PRODUCT);
       String estimate = "";
-      if (((story.getStory_type().equalsIgnoreCase("bug") || story.getStory_type().equalsIgnoreCase("chore")) && configuration.isBugsChoreEstimatable() == false)
-          || story.getStory_type().equalsIgnoreCase("release")) {
+      if (((story.getStoryType() == StoryType.bug || story.getStoryType() == StoryType.chore) && configuration.isBugsChoreEstimatable() == false)
+          || story.getStoryType() == StoryType.release) {
         attribute.clearOptions();
         attribute.putOption("Unestimated", "Unestimated");
         estimate = "Unestimated";
@@ -363,24 +346,19 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
 
       if (story.getEstimate() == -1) {
         estimate = "Unestimated";
-      } else if (story.getEstimate() == 1) {
-        estimate = story.getEstimate() + " point";
-      } else if (estimate.equalsIgnoreCase("")) {
-        estimate = story.getEstimate() + " points";
+      } else {
+        estimate = "" + story.getEstimate();
       }
       attribute.setValue(estimate);
       attribute = taskData.getRoot().getAttribute(TaskAttribute.TASK_KIND);
-      String storytype = story.getStory_type();
-      storytype = storytype.substring(0, 1).toUpperCase() + storytype.substring(1, storytype.length());
+      String storytype = story.getStoryType().name();
       attribute.setValue(storytype);
       attribute = taskData.getRoot().getAttribute(TaskAttribute.USER_ASSIGNED);
-      attribute.setValue(story.getRequested_by());
+      attribute.setValue(configuration.getMemberName(story.getRequestedBy()));
       attribute = taskData.getRoot().getAttribute(TaskAttribute.STATUS);
-      String stateValue = story.getCurrent_state();
-      if (stateValue.equalsIgnoreCase("unstarted")) {
+      String stateValue = story.getCurrentState().name();
+      if (story.getCurrentState() == StoryState.unstarted) {
         stateValue = "Not Yet Started";
-      } else {
-        stateValue = stateValue.substring(0, 1).toUpperCase() + stateValue.substring(1, stateValue.length());
       }
       attribute.setValue(stateValue);
 
@@ -400,11 +378,10 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
           attribute.putOption(status, status);
         }
       } else {
-        String[] states = configuration.getStoryStates();
         attribute = taskData.getRoot().getAttribute(TaskAttribute.STATUS);
         attribute.clearOptions();
-        for (String state : states) {
-          attribute.putOption(state, state);
+        for (StoryState storyState : StoryState.values()) {
+          attribute.putOption(storyState.name(), storyState.name());
         }
       }
 
@@ -413,86 +390,72 @@ public class PtTaskDataHandler extends AbstractTaskDataHandler {
       taskData.getAttributeMapper().setDateValue(attribute, complete ? new Date() : null);
 
       attribute = taskData.getRoot().getAttribute(TaskAttribute.USER_REPORTER);
-      if (story.getOwned_by() != null) {
-        attribute.setValue(story.getOwned_by());
-      } else {
-        attribute.setValue("");
-      }
+      attribute.setValue(configuration.getMemberName(story.getOwnedBy()));
 
       attribute = taskData.getRoot().getAttribute(TaskAttribute.PRIORITY);
-      attribute.setValue(story.getIterationType());
+      // attribute.setValue(story.getIterationType());
       rank = priority;
 
       // Added to display comments
-      Notes notes = story.getNotes();
-      if (notes != null) {
-
-        NoteData elements[] = notes.getNote();
-        if (elements != null) {
-          for (NoteData noteData : elements) {
-            TaskCommentMapper mapper = new TaskCommentMapper(); // Create a new one each time, to be safe.
-            mapper.setAuthor(repository.createPerson(noteData.getAuthor()));
-            Date date = null;
-            date = formatter.parse(noteData.getNoted_at());
-            mapper.setCreationDate(date);
-            mapper.setText(noteData.getText());
-            mapper.setNumber(noteData.getId());
-            attribute = taskData.getRoot().createAttribute(TaskAttribute.PREFIX_COMMENT + noteData.getId());
-            mapper.applyTo(attribute);
-          }
-
-        }
+      for (Comment comment : story.getComments()) {
+        TaskCommentMapper mapper = new TaskCommentMapper(); // Create a new one each time, to be safe.
+        mapper.setAuthor(repository.createPerson("" + comment.getPerson().getId()));
+        mapper.setCreationDate(comment.getUpdatedAt().toDate());
+        mapper.setText(comment.getText());
+        mapper.setNumber(comment.getId());
+        attribute = taskData.getRoot().createAttribute(TaskAttribute.PREFIX_COMMENT + comment.getId());
+        mapper.applyTo(attribute);
       }
       if (taskId != "") {
         taskData.getRoot().getAttribute(TaskAttribute.STATUS).getMetaData().setReadOnly(false);
       }
-      Attachments attachment = story.getAttachments();
-      if (attachment != null) {
-        Attachment elements[] = attachment.getAttachment();
-        if (elements != null) {
-          for (Attachment attachmentElement : elements) {
-            TaskAttachmentMapper mapper = new TaskAttachmentMapper();
-            mapper.setAuthor(repository.createPerson(attachmentElement.getUploaded_by()));
-            mapper.setFileName(attachmentElement.getFilename());
-            if (attachmentElement.getFilename().equalsIgnoreCase("mylyn-context.zip")) {
-              mapper.setDescription("mylyn/context/zip");
-            } else {
-              mapper.setDescription(attachmentElement.getDescription());
-            }
-            mapper.setUrl(attachmentElement.getUrl());
-            mapper.setCreationDate(formatter.parse(attachmentElement.getUploaded_at()));
-            mapper.setAttachmentId(attachmentElement.getId() + "");
-            attribute = taskData.getRoot().createAttribute(TaskAttribute.PREFIX_ATTACHMENT + attachmentElement.getId());
-            mapper.applyTo(attribute);
-          }
-        }
-      }
+      // Attachments attachment = story.getAttachments();
+      // if (attachment != null) {
+      // Attachment elements[] = attachment.getAttachment();
+      // if (elements != null) {
+      // for (Attachment attachmentElement : elements) {
+      // TaskAttachmentMapper mapper = new TaskAttachmentMapper();
+      // mapper.setAuthor(repository.createPerson(attachmentElement.getUploaded_by()));
+      // mapper.setFileName(attachmentElement.getFilename());
+      // if (attachmentElement.getFilename().equalsIgnoreCase("mylyn-context.zip")) {
+      // mapper.setDescription("mylyn/context/zip");
+      // } else {
+      // mapper.setDescription(attachmentElement.getDescription());
+      // }
+      // mapper.setUrl(attachmentElement.getUrl());
+      // mapper.setCreationDate(formatter.parse(attachmentElement.getUploaded_at()));
+      // mapper.setAttachmentId(attachmentElement.getId() + "");
+      // attribute = taskData.getRoot().createAttribute(TaskAttribute.PREFIX_ATTACHMENT + attachmentElement.getId());
+      // mapper.applyTo(attribute);
+      // }
+      // }
+      // }
 
-      if (story.getUpdated_at() != null) {
-        Date date = formatter.parse(story.getUpdated_at());
+      if (story.getUpdatedAt() != null) {
         attribute = taskData.getRoot().getAttribute(TaskAttribute.DATE_MODIFICATION);
-        taskData.getAttributeMapper().setDateValue(attribute, date);
+        taskData.getAttributeMapper().setDateValue(attribute, story.getUpdatedAt().toDate());
       }
 
       if (story.getLabels() != null) {
-        List<String> labels = Arrays.asList(story.getLabels().split(","));
         attribute = taskData.getRoot().getAttribute(PtTaskAttribute.TASK_LABEL);
-        attribute.setValues(labels);
+        List<String> labelList = new LinkedList<String>();
+        for (Label label : story.getLabels()) {
+          labelList.add(label.getName());
+        }
+        attribute.setValues(labelList);
       }
 
       attribute = taskData.getRoot().getAttribute(PtTaskAttribute.TASK_NEW);
       taskData.getAttributeMapper().setValue(attribute, "");
-      Tasks tasks = story.getTasks();
 
-      if (tasks != null) {
-        for (Task task : tasks.getTask()) {
-          PtTaskMapper mapper = new PtTaskMapper();
-          mapper.setTaskId(task.getId() + "");
-          mapper.setStatus(task.isComplete());
-          mapper.setText(task.getDescription());
-          attribute = taskData.getRoot().createAttribute(PtTaskAttribute.ATTR_PREFIX_TASK + task.getId());
-          mapper.applyTo(attribute);
-        }
+      for (Task task : story.getTasks()) {
+        PtTaskMapper mapper = new PtTaskMapper();
+        mapper.setTaskId(task.getId() + "");
+        mapper.setStatus(task.isComplete());
+        mapper.setText(task.getDescription());
+        attribute = taskData.getRoot().createAttribute(PtTaskAttribute.ATTR_PREFIX_TASK + task.getId());
+        mapper.applyTo(attribute);
+
       }
     } catch (Exception e) {
       throw new Exception("Error while reading story from PT");

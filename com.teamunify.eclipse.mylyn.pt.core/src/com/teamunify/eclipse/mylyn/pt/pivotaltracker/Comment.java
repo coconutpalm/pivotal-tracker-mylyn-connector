@@ -3,16 +3,12 @@ package com.teamunify.eclipse.mylyn.pt.pivotaltracker;
 import org.joda.time.DateTime;
 import com.google.gson.annotations.SerializedName;
 
-/**
- *
- * @author DL
- */
-public class Task {
-
+public class Comment {
   private int id;
-  private String description;
-  private int position;
-  private boolean complete;
+
+  private String text;
+
+  private Person person;
 
   @SerializedName("created_at")
   private DateTime createdAt;
@@ -28,28 +24,20 @@ public class Task {
     this.id = id;
   }
 
-  public String getDescription() {
-    return description;
+  public String getText() {
+    return text;
   }
 
-  public void setDescription(String description) {
-    this.description = description;
+  public void setText(String text) {
+    this.text = text;
   }
 
-  public int getPosition() {
-    return position;
+  public Person getPerson() {
+    return person;
   }
 
-  public void setPosition(int position) {
-    this.position = position;
-  }
-
-  public boolean isComplete() {
-    return complete;
-  }
-
-  public void setComplete(boolean complete) {
-    this.complete = complete;
+  public void setPerson(Person person) {
+    this.person = person;
   }
 
   public DateTime getCreatedAt() {
@@ -67,4 +55,5 @@ public class Task {
   public void setUpdatedAt(DateTime updatedAt) {
     this.updatedAt = updatedAt;
   }
+
 }

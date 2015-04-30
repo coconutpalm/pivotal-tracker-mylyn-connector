@@ -11,9 +11,7 @@ public class PtCorePlugin extends Plugin {
 
   public static final String REPOSITORY_KEY_PATH = ID_PLUGIN + ".path";
 
-  public static final String REPOSITORY_KEY_USERNAME = ID_PLUGIN + ".username";
-
-  public static final String REPOSITORY_KEY_PASSWORD = ID_PLUGIN + ".password";
+  public static final String REPOSITORY_KEY_APITOKEN = ID_PLUGIN + ".apitoken";
 
   public static final String QUERY_KEY_STORY_TYPE = ID_PLUGIN + ".storytype";
 

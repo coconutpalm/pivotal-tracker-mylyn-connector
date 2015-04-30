@@ -16,8 +16,12 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.List;
 import com.teamunify.eclipse.mylyn.pt.core.PtConnector;
 import com.teamunify.eclipse.mylyn.pt.core.PtCorePlugin;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Iteration;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Person;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PivotalTracker;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PtConfiguration;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story.StoryState;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story.StoryType;
 
 public class PtQueryPage extends AbstractRepositoryQueryPage2 {
 
@@ -50,7 +54,7 @@ public class PtQueryPage extends AbstractRepositoryQueryPage2 {
 
   @Override
   protected void createPageContent(SectionComposite parent) {
-    Composite composite = new Composite(parent, SWT.BORDER);
+    Composite composite = new Composite(parent.getContent(), SWT.BORDER);
     composite.setLayout(new GridLayout(4, false));
 
     // Row 1
@@ -106,24 +110,22 @@ public class PtQueryPage extends AbstractRepositoryQueryPage2 {
   private void removeAddValue() {
     PtConfiguration configuration = getClient().getConfiguration();
     storyTypeList.removeAll();
-    for (String member : configuration.getStoryTypes()) {
-      storyTypeList.add(member);
+    for (StoryType storyType : StoryType.values()) {
+      storyTypeList.add(storyType.name());
     }
     requestedByList.removeAll();
-    for (String member : configuration.getMembers()) {
-      requestedByList.add(member);
-    }
     ownedByList.removeAll();
-    for (String member : configuration.getMembers()) {
-      ownedByList.add(member);
+    for (Person member : configuration.getMembers()) {
+      requestedByList.add(member.getName());
+      ownedByList.add(member.getName());
     }
     stateList.removeAll();
-    for (String member : configuration.getStoryStates()) {
-      stateList.add(member);
+    for (StoryState storyState : StoryState.values()) {
+      stateList.add(storyState.name());
     }
     iterationTypeCombo.removeAll();
-    for (String member : configuration.getIterationTypes()) {
-      iterationTypeCombo.add(member);
+    for (Iteration iteration : configuration.getIterations()) {
+      iterationTypeCombo.add("" + iteration.getNumber());
     }
     iterationTypeCombo.select(0);
     if (configuration.getLabels() != null) {

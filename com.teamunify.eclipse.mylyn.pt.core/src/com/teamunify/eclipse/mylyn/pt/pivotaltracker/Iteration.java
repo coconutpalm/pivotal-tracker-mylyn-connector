@@ -1,22 +1,26 @@
 package com.teamunify.eclipse.mylyn.pt.pivotaltracker;
 
-/**
- * @author DL
- * 
- */
+import org.joda.time.DateTime;
+import com.google.gson.annotations.SerializedName;
 
 public class Iteration {
 
-  private Stories stories[];
-  private int id;
+  private int number;
 
-  public int getId() {
-    return id;
-  }
+  @SerializedName("project_id")
+  private int projectId;
 
-  public void setId(int id) {
-    this.id = id;
-  }
+  private int length;
+
+  @SerializedName("team_strength")
+  private float teamStrength;
+
+  @SerializedName("story_ids")
+  private int[] storyIds;
+
+  private DateTime start;
+  private DateTime finish;
+  private String kind;
 
   public int getNumber() {
     return number;
@@ -26,32 +30,59 @@ public class Iteration {
     this.number = number;
   }
 
-  public String getStart() {
+  public int getProjectId() {
+    return projectId;
+  }
+
+  public void setProjectId(int projectId) {
+    this.projectId = projectId;
+  }
+
+  public int getLength() {
+    return length;
+  }
+
+  public void setLength(int length) {
+    this.length = length;
+  }
+
+  public float getTeamStrength() {
+    return teamStrength;
+  }
+
+  public void setTeamStrength(float teamStrength) {
+    this.teamStrength = teamStrength;
+  }
+
+  public int[] getStoryIds() {
+    return storyIds;
+  }
+
+  public void setStoryIds(int[] storyIds) {
+    this.storyIds = storyIds;
+  }
+
+  public DateTime getStart() {
     return start;
   }
 
-  public void setStart(String start) {
+  public void setStart(DateTime start) {
     this.start = start;
   }
 
-  public String getFinish() {
+  public DateTime getFinish() {
     return finish;
   }
 
-  public void setFinish(String finish) {
+  public void setFinish(DateTime finish) {
     this.finish = finish;
   }
 
-  int number;
-  String start;
-  String finish;
-
-  public Stories[] getStories() {
-    return stories;
+  public String getKind() {
+    return kind;
   }
 
-  public void setStories(Stories[] stories) {
-    this.stories = stories;
+  public void setKind(String kind) {
+    this.kind = kind;
   }
-
 }

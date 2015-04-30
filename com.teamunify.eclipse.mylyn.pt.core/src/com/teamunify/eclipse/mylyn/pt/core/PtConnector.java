@@ -20,7 +20,6 @@ import org.eclipse.mylyn.tasks.core.data.TaskDataCollector;
 import org.eclipse.mylyn.tasks.core.data.TaskMapper;
 import org.eclipse.mylyn.tasks.core.sync.ISynchronizationSession;
 import org.eclipse.osgi.util.NLS;
-import com.teamunify.eclipse.mylyn.pt.core.util.PtQueryFilter;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PivotalTracker;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story;
 
@@ -38,8 +37,7 @@ public class PtConnector extends AbstractRepositoryConnector {
     if (client == null) {
       try {
         client = new PivotalTracker(repository.getProperty(PtCorePlugin.REPOSITORY_KEY_PATH),
-                                    repository.getProperty(PtCorePlugin.REPOSITORY_KEY_USERNAME),
-                                    repository.getProperty(PtCorePlugin.REPOSITORY_KEY_PASSWORD));
+                                    repository.getProperty(PtCorePlugin.REPOSITORY_KEY_APITOKEN));
 
         if (client.getErrmsg() == "") {
           clientByRepository1.put(repository, client);
@@ -129,20 +127,19 @@ public class PtConnector extends AbstractRepositoryConnector {
   public IStatus performQuery(TaskRepository repository, IRepositoryQuery query, TaskDataCollector collector,
                               ISynchronizationSession session, IProgressMonitor monitor) {
 
-    PtQueryFilter filter = new PtQueryFilter(query);
     try {
-      List<Story> storyList = getPivotalTracker(repository).getCurrentIterations(query.getAttribute(PtCorePlugin.QUERY_KEY_ITERATION_TYPE));
+      List<Story> storyList = getPivotalTracker(repository).collectStories(query);
       for (Story story : storyList) {
 
         TaskData taskData = taskDataHandler.parseDocument(repository, story, monitor, ""
-                                                                                      + (storyList.indexOf(story) + 1));
+            + (storyList.indexOf(story) + 1));
         taskData.getRoot().getAttribute(TaskAttribute.TASK_URL).setValue(query.getSummary());
 
         // set to true if repository does not return full task details
         // taskData.setPartial(true);
-        if (filter.accepts(taskData)) {
-          collector.accept(taskData);
-        }
+        // if (filter.accepts(taskData)) {
+        collector.accept(taskData);
+        // }
       }
     } catch (Exception e) {
       return new Status(IStatus.ERROR, PtCorePlugin.ID_PLUGIN, NLS.bind("Query failed: ''{0}''", e.getMessage()), e);

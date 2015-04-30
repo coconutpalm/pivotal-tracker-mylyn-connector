@@ -20,6 +20,7 @@ import com.teamunify.eclipse.mylyn.pt.core.PtCorePlugin;
 import com.teamunify.eclipse.mylyn.pt.core.PtTaskAttribute;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PivotalTracker;
 import com.teamunify.eclipse.mylyn.pt.pivotaltracker.PtConfiguration;
+import com.teamunify.eclipse.mylyn.pt.pivotaltracker.Story.StoryState;
 
 public class PtTaskEditorPage extends AbstractTaskEditorPage {
 
@@ -122,9 +123,8 @@ public class PtTaskEditorPage extends AbstractTaskEditorPage {
               attribute2.putOption(state, state);
             }
           } else {
-            String[] states = configuration.getStoryStates();
-            for (String state : states) {
-              attribute2.putOption(state, state);
+            for (StoryState storyState : StoryState.values()) {
+              attribute2.putOption(storyState.name(), storyState.name());
             }
 
           }

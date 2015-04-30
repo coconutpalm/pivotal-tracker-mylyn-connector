@@ -89,8 +89,7 @@ public class PtRepositoryPage extends AbstractRepositorySettingsPage {
   public void applyTo(TaskRepository repository) {
     super.applyTo(repository);
     repository.setProperty(PtCorePlugin.REPOSITORY_KEY_PATH, getRepositoryUrl());
-    repository.setProperty(PtCorePlugin.REPOSITORY_KEY_USERNAME, getUserName());
-    repository.setProperty(PtCorePlugin.REPOSITORY_KEY_PASSWORD, getPassword());
+    repository.setProperty(PtCorePlugin.REPOSITORY_KEY_APITOKEN, getUserName());
   }
 
   private File getLocation(TaskRepository repository) {
@@ -123,7 +122,7 @@ public class PtRepositoryPage extends AbstractRepositorySettingsPage {
       public void run(IProgressMonitor monitor) throws CoreException {
         PivotalTracker pivotalTracker = null;
         try {
-          pivotalTracker = new PivotalTracker("", repository.getUserName(), repository.getPassword());
+          pivotalTracker = new PivotalTracker("", repository.getUserName());
         } catch (Exception e1) {
           // TODO Auto-generated catch block
           e1.printStackTrace();
@@ -131,7 +130,7 @@ public class PtRepositoryPage extends AbstractRepositorySettingsPage {
 
         File location = getLocation(repository);
         if (repository.getUserName() != null && repository.getPassword() != null) {
-          if (pivotalTracker.getToken().trim().equalsIgnoreCase("")) {
+          if (pivotalTracker.getApiToken().trim().equalsIgnoreCase("")) {
             throw new CoreException(
                                     new Status(
                                                IStatus.ERROR,

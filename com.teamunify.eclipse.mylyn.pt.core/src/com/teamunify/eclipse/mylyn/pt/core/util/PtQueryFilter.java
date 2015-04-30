@@ -51,7 +51,8 @@ public class PtQueryFilter {
     if (!match(ownedByPattern, taskData.getRoot().getAttribute(TaskAttribute.USER_REPORTER), false)) { return false; }
     if (!match(statePattern, taskData.getRoot().getAttribute(TaskAttribute.STATUS), false)) { return false; }
     if (!match(labelPattern, taskData.getRoot().getAttribute(TaskAttribute.KEYWORDS), invertLabels)) { return false; }
-    if (!match(iterationTypePattern, taskData.getRoot().getAttribute(TaskAttribute.PRIORITY), false)) { return false; }
+    // if (!match(iterationTypePattern, taskData.getRoot().getAttribute(TaskAttribute.PRIORITY), false)) { return false;
+    // }
     return true;
   }
 
