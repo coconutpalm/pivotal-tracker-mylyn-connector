@@ -1,0 +1,97 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>com.teamunify.eclipse.mylyn.pt</groupId>
+	<artifactId>com.teamunify.eclipse.mylyn.pt.master</artifactId>
+	<version>1.1.0-SNAPSHOT</version>
+	<packaging>pom</packaging>
+	
+	<modules>
+		<module>../com.teamunify.eclipse.mylyn.pt.core</module>
+		<module>../com.teamunify.eclipse.mylyn.pt.ui</module>
+		<module>../com.teamunify.eclipse.mylyn.pt-feature</module>
+		<module>../com.teamunify.eclipse.mylyn.pt.updatesite</module>
+	</modules>
+
+	<properties>
+		<tycho.version>0.22.0</tycho.version>
+		<tycho-extras.version>0.22.0</tycho-extras.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+
+	<repositories>
+		<repository>
+			<id>eclipse</id>
+			<url>${eclipse.repo.url}</url>
+			<layout>p2</layout>
+		</repository>
+	</repositories>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>tycho-maven-plugin</artifactId>
+				<version>${tycho.version}</version>
+				<extensions>true</extensions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>target-platform-configuration</artifactId>
+				<version>${tycho.version}</version>
+				<configuration>
+					<environments>
+						<!-- <environment> <os>win32</os> <ws>win32</ws> <arch>x86</arch> </environment> -->
+						<environment>
+							<os>win32</os>
+							<ws>win32</ws>
+							<arch>x86_64</arch>
+						</environment>
+
+						<!-- <environment> <os>linux</os> <ws>gtk</ws> <arch>x86</arch> </environment> 
+						<environment>
+							<os>linux</os>
+							<ws>gtk</ws>
+							<arch>x86_64</arch>
+						</environment>
+						<environment> <os>macosx</os> <ws>cocoa</ws> <arch>x86_64</arch> 
+							</environment> -->
+					</environments>
+				</configuration>
+			</plugin>
+		</plugins>
+
+		<pluginManagement>
+			<plugins>
+				<!-- tag the build with the current git commit timestamp -->
+				<plugin>
+					<groupId>org.eclipse.tycho</groupId>
+					<artifactId>tycho-packaging-plugin</artifactId>
+					<version>${tycho.version}</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
+	<profiles>
+		<profile>
+			<id>luna</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<eclipse.repo.url>http://download.eclipse.org/releases/luna</eclipse.repo.url>
+				<platform.version>[4.4,4.5)</platform.version>
+			</properties>
+		</profile>
+		<profile>
+			<id>mars</id>
+			<properties>
+				<eclipse.repo.url>http://download.eclipse.org/releases/staging</eclipse.repo.url>
+				<platform.version>[4.5,4.6)</platform.version>
+			</properties>
+		</profile>
+	</profiles>
+</project>
